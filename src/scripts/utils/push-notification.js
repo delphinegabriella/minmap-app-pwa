@@ -63,3 +63,42 @@ function urlBase64ToUint8Array(base64string) {
   return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
 }
 
+export async function unsubscribePushNotification() {
+  console.log('Unsubscribe function');
+
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    alert('Harus login dulu!');
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    alert('Belum subscribe!');
+    return;
+  }
+
+  const subJSON = subscription.toJSON();
+
+  try {
+    await fetch('https://story-api.dicoding.dev/v1/notifications/subscribe', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        endpoint: subJSON.endpoint,
+      }),
+    });
+
+    await subscription.unsubscribe();
+
+    alert('Berhasil unsubscribe!');
+  } catch (error) {
+    console.error('Gagal unsubscribe:', error);
+  }
+}

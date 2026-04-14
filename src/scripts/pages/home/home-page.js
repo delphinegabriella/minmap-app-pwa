@@ -2,11 +2,11 @@ import HomePresenter from '../../presenter/home-presenter';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { deleteStory, saveStory } from '../../data/idb.js';
-
+import { unsubscribePushNotification, subscribePushNotification } from '../../utils/push-notification.js';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
- import { subscribePushNotification } from '../../utils/push-notification.js';
+
 const DefaultIcon = L.icon({
   iconUrl,
   shadowUrl,
@@ -21,14 +21,18 @@ export default class HomePage {
         <h1>Home Page</h1>
         
         <button id="notifBtn">Aktifkan Notifikasi</button>
+        <button id="unsubBtn">Matikan Notifikasi</button>
 
         <section id="stories">
           <h2>Daftar Story</h2>
+          
+          <label for="searchInput">Cari Story</label>
           <input type="text" id="searchInput" placeholder="Cari story..." />
 
-           <select id="sortSelect">
-          <option value="newest">Terbaru</option>
-          <option value="oldest">Terlama</option>
+          <label for="sortSelect">Urutkan Story</label>
+          <select id="sortSelect">
+            <option value="newest">Terbaru</option>
+            <option value="oldest">Terlama</option>
           </select>
 
           <div id="list"></div>
@@ -45,9 +49,11 @@ export default class HomePage {
   async afterRender() {
     const mapElement = document.getElementById('map');
     if (!mapElement) return;
-    if(this._map) {
+
+    if (this._map) {
       this._map.remove();
     }
+
     this._map = L.map('map').setView([-6.2, 106.8], 5);
 
     const normal = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
@@ -64,58 +70,65 @@ export default class HomePage {
 
     this._presenter = new HomePresenter(this);
     this._presenter.showStories();
-    const notifBtn = document.getElementById('notifBtn');
 
+    // subcribe
+    const notifBtn = document.getElementById('notifBtn');
     if (notifBtn) {
-     notifBtn.addEventListener('click',() =>{
-      console.log('Button Click');
-      subscribePushNotification();
-     });
+      notifBtn.addEventListener('click', () => {
+        subscribePushNotification();
+      });
     }
 
-    const searchInput = document.getElementById('searchInput');
+    // unsubscribe
+    const unsubBtn = document.getElementById('unsubBtn');
+    if (unsubBtn) {
+      unsubBtn.addEventListener('click', () => {
+        unsubscribePushNotification();
+      });
+    }
 
+    // search
+    const searchInput = document.getElementById('searchInput');
     searchInput.addEventListener('input', (event) => {
       const keyword = event.target.value.toLowerCase();
 
       const filtered = this._allstories.filter((story) =>
-      story.name?.toLowerCase().includes(keyword)
-    );
-    this.showStories(filtered);
+        story.name?.toLowerCase().includes(keyword)
+      );
+
+      this.showStories(filtered);
     });
-   
+
+    // sort
     const sortSelect = document.getElementById('sortSelect');
-
     sortSelect.addEventListener('change', (event) => {
-  const value = event.target.value;
+      const value = event.target.value;
 
-  const sorted = [...this._allstories].sort((a, b) => {
-    const timeA = new Date(a.createdAt || 0).getTime();
-    const timeB = new Date(b.createdAt || 0).getTime();
+      const sorted = [...this._allstories].sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
 
-    return value === 'newest'
-      ? timeB - timeA
-      : timeA - timeB;
-  });
+        return value === 'newest'
+          ? timeB - timeA
+          : timeA - timeB;
+      });
 
-  this.showStories(sorted);
-  });
+      this.showStories(sorted);
+    });
   }
 
-  //untuk UI
+  // For UI
   showStories(stories) {
     console.log('DATA STORIES:', stories);
     this._allstories = stories || [];
 
     const list = document.getElementById('list');
 
-   
     if (!stories || stories.length === 0) {
       list.innerHTML = '<p>Tidak ada story tersedia</p>';
       return;
     }
 
-    
     const storiesHTML = stories.map((story, index) => {
       const lat = Number(story.lat);
       const lon = Number(story.lon);
@@ -140,6 +153,7 @@ export default class HomePage {
           }</p>
 
           <p>Lokasi: ${!isNaN(lat) ? lat : '-'}, ${!isNaN(lon) ? lon : '-'}</p>
+
           <button class="save-btn" data-index="${index}">Save</button>
           <button class="delete-btn" data-id="${story.id}">Delete</button>
 
@@ -149,10 +163,8 @@ export default class HomePage {
 
     list.innerHTML = storiesHTML;
 
-
     this._markers = [];
 
-    
     stories.forEach((story, index) => {
       const lat = Number(story.lat);
       const lon = Number(story.lon);
@@ -170,7 +182,7 @@ export default class HomePage {
       }
     });
 
-    
+    //map
     document.querySelectorAll('.story-item').forEach((el) => {
       el.addEventListener('click', () => {
         const index = el.dataset.index;
@@ -188,6 +200,7 @@ export default class HomePage {
       });
     });
 
+    // save
     document.querySelectorAll('.save-btn').forEach((btn) => {
       btn.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -200,25 +213,22 @@ export default class HomePage {
       });
     });
 
+    // Delete
     document.querySelectorAll('.delete-btn').forEach((btn) => {
-  btn.addEventListener('click', async (event) => {
-    event.stopPropagation();
+      btn.addEventListener('click', async (event) => {
+        event.stopPropagation();
 
-    const id = btn.dataset.id;
+        const id = btn.dataset.id;
 
-    console.log('CLICK DELETE ID:', id);
+        await deleteStory(id);
 
-    await deleteStory(id);
+        const updated = this._allstories.filter(
+          (story) => story.id !== id
+        );
 
-    const updated = this._allstories.filter(
-      (story) => story.id !== id
-    );
-
-    console.log('SETELAH FILTER:', updated);
-
-    this._allstories = updated;
-    this.showStories(updated);
-  });
-});
+        this._allstories = updated;
+        this.showStories(updated);
+      });
+    });
   }
 }
