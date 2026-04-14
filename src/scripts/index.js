@@ -52,7 +52,7 @@ document.addEventListener('click',(e) => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.register('./sw.js');
       console.log('Service Worker berhasil didaftarkan');
     } catch (error) {
       console.error('Service Worker gagal:', error);
